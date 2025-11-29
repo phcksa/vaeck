@@ -1,0 +1,5 @@
+{
+  "name": "VAE Smart Portal",
+  "description": "A comprehensive medical training portal for Ventilator-Associated Events (VAE) surveillance, featuring an admin dashboard and interactive trainee simulations.",
+  "requestFramePermissions": []
+}
