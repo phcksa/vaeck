@@ -1,3 +1,4 @@
+// src/components/AdminDashboard.tsx
 import React, { useState, useEffect } from 'react';
 import { dbService } from '../services/db';
 import { User, AccessCode } from '../types';
@@ -18,15 +19,20 @@ export const AdminDashboard: React.FC = () => {
   const [codeDays, setCodeDays] = useState(30);
   const [lastGeneratedCode, setLastGeneratedCode] = useState<string | null>(null);
 
-  // جلب البيانات من فايربيس
+  // جلب البيانات من فايربيس عند فتح الصفحة
   useEffect(() => {
     const fetchData = async () => {
         setLoading(true);
-        const u = await dbService.getAllUsers();
-        const c = await dbService.getAllCodes();
-        setUsers(u);
-        setCodes(c);
-        setLoading(false);
+        try {
+            const u = await dbService.getAllUsers();
+            const c = await dbService.getAllCodes();
+            setUsers(u);
+            setCodes(c);
+        } catch (error) {
+            console.error("Failed to fetch data", error);
+        } finally {
+            setLoading(false);
+        }
     };
     fetchData();
   }, [refreshTrigger]);
@@ -38,7 +44,7 @@ export const AdminDashboard: React.FC = () => {
     e.preventDefault();
     const newCode = await dbService.generateCode(codePrefix, codeDays);
     setLastGeneratedCode(newCode);
-    setRefreshTrigger(prev => prev + 1); // إعادة تحميل البيانات
+    setRefreshTrigger(prev => prev + 1); // إعادة تحميل القائمة
   };
 
   const downloadCSV = () => {
@@ -72,6 +78,7 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* الإحصائيات */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm border-b-4 border-primary-600 text-center">
           <div className="text-3xl font-bold text-primary-600 mb-1">{users.length}</div>
@@ -87,6 +94,7 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* التبويبات */}
       <div className="bg-white rounded-xl shadow-sm overflow-hidden flex-1">
         <div className="border-b border-gray-200">
           <nav className="flex -mb-px">
