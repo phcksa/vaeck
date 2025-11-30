@@ -1,3 +1,4 @@
+// src/components/TraineeApp.tsx
 import React, { useState, useEffect } from 'react';
 import { User } from '../types';
 import { dbService } from '../services/db';
@@ -45,11 +46,11 @@ export const TraineeApp: React.FC<TraineeAppProps> = ({ initialUser, onLogout })
     setActivationError('');
     if (!activationCode) return;
 
-    // هنا الفرق: نستخدم await لأن الطلب يروح للانترنت
+    // نستخدم await للانتظار
     const result = await dbService.activateCode(currentUser.username, activationCode);
     
     if (result.success) {
-      await handleRefreshUser(); // تحديث بيانات المستخدم فوراً
+      await handleRefreshUser(); // تحديث فوري
     } else {
       setActivationError('الكود غير صحيح أو مستخدم.');
     }
