@@ -1,28 +1,12 @@
-import { DbSchema, User, AccessCode } from '../types';
+// src/services/db.ts
+import { db } from '../lib/firebase';
+import { 
+  doc, getDoc, setDoc, updateDoc, 
+  collection, getDocs, query, increment 
+} from 'firebase/firestore';
+import { User, AccessCode } from '../types';
 
-const DB_KEY = 'vae_portal_cloud_db';
-
-const INITIAL_DB: DbSchema = {
-  users: {
-    admin: {
-      username: 'admin',
-      password: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918', // sha256 of admin123
-      name: 'Admin System',
-      empId: '0000',
-      dept: 'Administration',
-      role: 'admin',
-      score: 0,
-      expiryDate: '2099-12-31T00:00:00.000Z',
-      createdAt: new Date().toISOString()
-    }
-  },
-  codes: {
-    "SHIFA2025": { code: "SHIFA2025", days: 30, status: "active", createdBy: "System" },
-    "TRIAL7": { code: "TRIAL7", days: 7, status: "active", createdBy: "System" }
-  }
-};
-
-// Simple SHA-256 hash function
+// دالة التشفير (بقيت كما هي لحماية كلمات المرور)
 async function sha256(message: string): Promise<string> {
   const msgBuffer = new TextEncoder().encode(message);
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
@@ -31,121 +15,147 @@ async function sha256(message: string): Promise<string> {
 }
 
 export const dbService = {
-  init: () => {
-    if (!localStorage.getItem(DB_KEY)) {
-      localStorage.setItem(DB_KEY, JSON.stringify(INITIAL_DB));
-    }
+  // دالة تهيئة فارغة للحفاظ على توافق الكود
+  init: () => {},
+
+  // 1. جلب كل المستخدمين (للأدمن)
+  getAllUsers: async (): Promise<User[]> => {
+    const q = query(collection(db, "users"));
+    const snapshot = await getDocs(q);
+    // نستثني الأدمن من القائمة عشان ما يظهر لنفسه
+    return snapshot.docs.map(doc => doc.data() as User).filter(u => u.role !== 'admin');
   },
 
-  getDb: (): DbSchema => {
-    const data = localStorage.getItem(DB_KEY);
-    return data ? JSON.parse(data) : INITIAL_DB;
+  // 2. جلب كل الأكواد (للأدمن)
+  getAllCodes: async (): Promise<AccessCode[]> => {
+    const q = query(collection(db, "codes"));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => doc.data() as AccessCode);
   },
 
-  saveDb: (data: DbSchema) => {
-    localStorage.setItem(DB_KEY, JSON.stringify(data));
-  },
-
+  // 3. تسجيل الدخول
   login: async (username: string, passwordPlain: string): Promise<{ success: boolean; user?: User }> => {
-    const db = dbService.getDb();
-    
-    // Admin override check matches Python logic
-    if (username === 'admin' && passwordPlain === 'admin123') {
-        const adminUser = db.users['admin'];
-        if (adminUser) {
-             // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const { password, ...safeUser } = adminUser;
-            return { success: true, user: safeUser as User };
+    try {
+      // السماح للأدمن بالدخول حتى لو لم يكن في قاعدة البيانات (لأول مرة)
+      if (username === 'admin' && passwordPlain === 'admin123') {
+         // نحاول نجلب بياناته لو كانت موجودة
+         const adminRef = doc(db, "users", "admin");
+         const adminSnap = await getDoc(adminRef);
+         if (adminSnap.exists()) return { success: true, user: adminSnap.data() as User };
+         
+         // لو مو موجود (أول مرة)، نرجع يوزر مؤقت عشان تقدر تدخل وتنشئه
+         return { success: true, user: { 
+             username: 'admin', name: 'System Admin', role: 'admin', 
+             dept: 'IT', empId: '000', score: 0, expiryDate: '2099-01-01', createdAt: new Date().toISOString() 
+         }};
+      }
+
+      // تسجيل دخول المستخدمين العاديين
+      const userRef = doc(db, "users", username);
+      const userSnap = await getDoc(userRef);
+
+      if (userSnap.exists()) {
+        const userData = userSnap.data() as User;
+        const hashed = await sha256(passwordPlain);
+        // مقارنة الهاش للتأكد من كلمة المرور
+        if (userData.password === hashed) {
+          return { success: true, user: userData };
         }
+      }
+      return { success: false };
+    } catch (e) {
+      console.error("Login Error:", e);
+      return { success: false };
     }
-
-    const user = db.users[username];
-    if (!user) return { success: false };
-
-    const hashed = await sha256(passwordPlain);
-    if (user.password === hashed) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { password, ...safeUser } = user;
-      return { success: true, user: safeUser as User };
-    }
-    return { success: false };
   },
 
+  // 4. تسجيل مستخدم جديد
   register: async (user: User, passwordPlain: string): Promise<{ success: boolean; message: string }> => {
-    const db = dbService.getDb();
-    if (db.users[user.username]) {
-      return { success: false, message: 'اسم المستخدم محجوز مسبقاً ❌' };
-    }
+    try {
+      const userRef = doc(db, "users", user.username);
+      const userSnap = await getDoc(userRef);
 
-    const hashedPassword = await sha256(passwordPlain);
-    
-    // Create expired user (yesterday)
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
+      if (userSnap.exists()) {
+        return { success: false, message: 'اسم المستخدم محجوز مسبقاً ❌' };
+      }
 
-    const newUser: User = {
-      ...user,
-      password: hashedPassword,
-      expiryDate: yesterday.toISOString(),
-      createdAt: new Date().toISOString()
-    };
-
-    db.users[user.username] = newUser;
-    dbService.saveDb(db);
-    return { success: true, message: 'تم التسجيل بنجاح! ✅ (الحالة: غير نشط)' };
-  },
-
-  activateCode: (username: string, codeStr: string): { success: boolean; days: number } => {
-    const db = dbService.getDb();
-    const code = db.codes[codeStr];
-    const user = db.users[username];
-
-    if (user && code && code.status === 'active') {
-      const now = new Date();
-      // Add days to current time
-      const newExpiry = new Date(now.setDate(now.getDate() + code.days));
+      const hashedPassword = await sha256(passwordPlain);
       
-      // Update user expiry
-      user.expiryDate = newExpiry.toISOString();
-      db.users[username] = user;
+      // تعيين تاريخ انتهاء في الماضي (عشان يحتاج كود تفعيل)
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
 
-      // Mark code as used (Single use logic)
-      code.status = 'used';
-      code.usedBy = username;
-      code.usedAt = new Date().toISOString();
-      db.codes[codeStr] = code;
+      const newUser: User = {
+        ...user,
+        password: hashedPassword,
+        expiryDate: yesterday.toISOString(),
+        createdAt: new Date().toISOString()
+      };
 
-      dbService.saveDb(db);
-      return { success: true, days: code.days };
+      await setDoc(userRef, newUser);
+      return { success: true, message: 'تم التسجيل بنجاح! ✅' };
+    } catch (e) {
+      console.error(e);
+      return { success: false, message: 'حدث خطأ في الاتصال' };
     }
-    return { success: false, days: 0 };
   },
 
-  updateScore: (username: string, increment: number) => {
-    const db = dbService.getDb();
-    if (db.users[username]) {
-      db.users[username].score += increment;
-      dbService.saveDb(db);
+  // 5. تفعيل كود الاشتراك
+  activateCode: async (username: string, codeStr: string): Promise<{ success: boolean; days: number }> => {
+    try {
+      const codeRef = doc(db, "codes", codeStr);
+      const codeSnap = await getDoc(codeRef);
+
+      if (!codeSnap.exists()) return { success: false, days: 0 };
+
+      const codeData = codeSnap.data() as AccessCode;
+      if (codeData.status !== 'active') return { success: false, days: 0 };
+
+      const userRef = doc(db, "users", username);
+      const now = new Date();
+      // إضافة أيام الكود لتاريخ اليوم
+      const newExpiry = new Date(now.setDate(now.getDate() + codeData.days));
+
+      // تحديث المستخدم والكود معاً (يفضل استخدام batch في التطبيقات الكبيرة بس هذا يفي بالغرض)
+      await updateDoc(userRef, { expiryDate: newExpiry.toISOString() });
+      await updateDoc(codeRef, { 
+          status: 'used', 
+          usedBy: username, 
+          usedAt: new Date().toISOString() 
+      });
+
+      return { success: true, days: codeData.days };
+    } catch (e) {
+      return { success: false, days: 0 };
     }
+  },
+
+  // 6. تحديث النقاط (زيادة)
+  updateScore: async (username: string, incrementVal: number) => {
+    const userRef = doc(db, "users", username);
+    await updateDoc(userRef, {
+      score: increment(incrementVal)
+    });
   },
   
-  generateCode: (prefix: string, days: number): string => {
-     const db = dbService.getDb();
+  // 7. توليد كود جديد وحفظه في السحابة
+  generateCode: async (prefix: string, days: number): Promise<string> => {
      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
      let randomPart = "";
      for (let i = 0; i < 6; i++) {
         randomPart += chars.charAt(Math.floor(Math.random() * chars.length));
      }
-     
      const newCodeStr = `${prefix}-${randomPart}`;
      
-     db.codes[newCodeStr] = {
-       code: newCodeStr,
-       days,
-       status: 'active',
-       createdBy: 'Admin'
-     };
-     dbService.saveDb(db);
+     await setDoc(doc(db, "codes", newCodeStr), {
+       code: newCodeStr, days, status: 'active', createdBy: 'Admin'
+     });
      return newCodeStr;
+  },
+
+  // 8. جلب بيانات مستخدم واحد (لتحديث الواجهة)
+  getUser: async (username: string): Promise<User | null> => {
+    const snap = await getDoc(doc(db, "users", username));
+    return snap.exists() ? snap.data() as User : null;
   }
 };
