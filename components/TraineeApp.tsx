@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { User } from '../types';
 import { dbService } from '../services/db';
 import { VAESimulator } from './VAESimulator';
-import { LogOut, Medal } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Footer } from './ui/Footer';
@@ -34,22 +33,23 @@ export const TraineeApp: React.FC<TraineeAppProps> = ({ initialUser, onLogout })
     checkStatus(currentUser);
   }, [currentUser]);
 
-  const handleRefreshUser = () => {
-    const db = dbService.getDb();
-    if (db.users[currentUser.username]) {
-        setCurrentUser(db.users[currentUser.username]);
+  // دالة لجلب أحدث البيانات من السيرفر
+  const handleRefreshUser = async () => {
+    const updatedUser = await dbService.getUser(currentUser.username);
+    if (updatedUser) {
+        setCurrentUser(updatedUser);
     }
   };
 
-  const handleActivate = () => {
+  const handleActivate = async () => {
     setActivationError('');
     if (!activationCode) return;
 
-    const result = dbService.activateCode(currentUser.username, activationCode);
+    // هنا الفرق: نستخدم await لأن الطلب يروح للانترنت
+    const result = await dbService.activateCode(currentUser.username, activationCode);
+    
     if (result.success) {
-      const db = dbService.getDb();
-      setCurrentUser(db.users[currentUser.username]);
-      // The useEffect will trigger status update
+      await handleRefreshUser(); // تحديث بيانات المستخدم فوراً
     } else {
       setActivationError('الكود غير صحيح أو مستخدم.');
     }
@@ -57,7 +57,6 @@ export const TraineeApp: React.FC<TraineeAppProps> = ({ initialUser, onLogout })
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
-      {/* Sidebar */}
       <aside className="w-full md:w-72 bg-white border-l border-gray-200 p-6 flex flex-col shadow-lg z-10">
         <div className="mb-8 text-center">
             <h1 className="text-3xl font-bold text-primary-700">VTS</h1>
@@ -87,40 +86,21 @@ export const TraineeApp: React.FC<TraineeAppProps> = ({ initialUser, onLogout })
             </div>
         </div>
 
-        <button 
-            onClick={onLogout}
-            className="mt-8 flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors p-2 rounded-lg mb-4"
-        >
-            <LogOut size={18} />
-            <span>خروج</span>
+        <button onClick={onLogout} className="mt-8 flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors p-2 rounded-lg mb-4">
+            <LogOut size={18} /> <span>خروج</span>
         </button>
-
         <Footer className="border-t pt-4" />
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 p-4 md:p-8 overflow-y-auto">
         {!isActivated ? (
             <div className="max-w-lg mx-auto mt-20 text-center animate-fade-in">
                 <div className="bg-white p-8 rounded-2xl shadow-lg border-t-8 border-red-600">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                        عذراً {currentUser.name}، اشتراكك غير مفعل.
-                    </h2>
-                    
+                    <h2 className="text-2xl font-bold text-gray-900 mb-4">عذراً {currentUser.name}، اشتراكك غير مفعل.</h2>
                     <div className="space-y-4">
-                        <Input 
-                            placeholder="كود التفعيل" 
-                            value={activationCode}
-                            onChange={(e) => setActivationCode(e.target.value)}
-                            className="text-center text-lg font-mono uppercase"
-                            error={activationError}
-                        />
-                        <Button onClick={handleActivate} fullWidth className="py-3 text-lg bg-primary-600 hover:bg-primary-700">
-                            تفعيل الاشتراك 🔓
-                        </Button>
-                        <button onClick={onLogout} className="text-gray-500 hover:text-gray-700 text-sm underline mt-4">
-                            تسجيل الخروج
-                        </button>
+                        <Input placeholder="كود التفعيل" value={activationCode} onChange={(e) => setActivationCode(e.target.value)} className="text-center text-lg font-mono uppercase" error={activationError}/>
+                        <Button onClick={handleActivate} fullWidth className="py-3 text-lg bg-primary-600 hover:bg-primary-700">تفعيل الاشتراك 🔓</Button>
+                        <button onClick={onLogout} className="text-gray-500 hover:text-gray-700 text-sm underline mt-4">تسجيل الخروج</button>
                     </div>
                 </div>
             </div>
