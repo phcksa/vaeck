@@ -1,5 +1,5 @@
 // src/services/db.ts
-import { db } from '../lib/firebase';
+import { db } from '../src/lib/firebase';
 import { 
   doc, getDoc, setDoc, updateDoc, 
   collection, getDocs, query, increment 
