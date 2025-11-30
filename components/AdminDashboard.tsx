@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
 import { dbService } from '../services/db';
 import { User, AccessCode } from '../types';
 import { Users, Key, Calendar, Activity, Download, Plus } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
+import { Footer } from './ui/Footer';
 
 export const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'users' | 'codes'>('users');
@@ -57,10 +59,10 @@ export const AdminDashboard: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-8 animate-fade-in flex flex-col min-h-full">
       <div className="flex justify-between items-center border-b pb-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">☁️ لوحة التحكم السحابية (Firebase Dashboard)</h1>
+          <h1 className="text-3xl font-bold text-gray-900">☁️ VTS - لوحة التحكم</h1>
           <p className="text-gray-500">مراقبة النظام وإدارة الاشتراكات</p>
         </div>
       </div>
@@ -84,7 +86,7 @@ export const AdminDashboard: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden flex-1">
         <div className="border-b border-gray-200">
           <nav className="flex -mb-px">
             <button
@@ -227,6 +229,7 @@ export const AdminDashboard: React.FC = () => {
           )}
         </div>
       </div>
+      <Footer />
     </div>
   );
 };

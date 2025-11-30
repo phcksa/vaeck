@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { User } from '../types';
 import { dbService } from '../services/db';
@@ -5,6 +6,7 @@ import { VAESimulator } from './VAESimulator';
 import { LogOut, Medal } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
+import { Footer } from './ui/Footer';
 
 interface TraineeAppProps {
   initialUser: User;
@@ -58,8 +60,8 @@ export const TraineeApp: React.FC<TraineeAppProps> = ({ initialUser, onLogout })
       {/* Sidebar */}
       <aside className="w-full md:w-72 bg-white border-l border-gray-200 p-6 flex flex-col shadow-lg z-10">
         <div className="mb-8 text-center">
-            <h1 className="text-2xl font-bold text-primary-700">VAE Portal</h1>
-            <p className="text-xs text-gray-500 mt-1">Cloud Training System</p>
+            <h1 className="text-3xl font-bold text-primary-700">VTS</h1>
+            <p className="text-xs text-gray-500 mt-1">VAE Training System</p>
         </div>
 
         <div className="mb-6 p-4 rounded-xl border border-primary-100 bg-primary-50">
@@ -87,11 +89,13 @@ export const TraineeApp: React.FC<TraineeAppProps> = ({ initialUser, onLogout })
 
         <button 
             onClick={onLogout}
-            className="mt-8 flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors p-2 rounded-lg"
+            className="mt-8 flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors p-2 rounded-lg mb-4"
         >
             <LogOut size={18} />
             <span>خروج</span>
         </button>
+
+        <Footer className="border-t pt-4" />
       </aside>
 
       {/* Main Content */}
@@ -123,7 +127,7 @@ export const TraineeApp: React.FC<TraineeAppProps> = ({ initialUser, onLogout })
         ) : (
             <div className="max-w-6xl mx-auto animate-fade-in">
                 <div className="flex items-center gap-2 mb-6">
-                    <h1 className="text-3xl font-bold text-gray-800">🩺 VAE Simulator (Connected)</h1>
+                    <h1 className="text-3xl font-bold text-gray-800">🩺 VAE Simulator</h1>
                 </div>
                 <VAESimulator user={currentUser} onUpdateUser={handleRefreshUser} />
             </div>
